@@ -13,6 +13,16 @@ answer, byte for byte, without trusting any model's opinion.
 Most code is now written by AI and reviewed by AI. A model saying "this looks
 fine" is not verification. A deterministic check you can re-run yourself is.
 
+## Does it actually catch the bug?
+
+Six real-world refactors that looked behaviour-preserving, run through `equiv`
+live. Five it catches with the exact diverging input. One it honestly cannot
+(fixed-width integer overflow does not exist in Python). Every result is reproducible.
+
+![equiv across six real-world bug patterns: five caught, one honest miss](assets/equiv-scenarios.gif)
+
+Runnable files and the full write-up: [`examples/scenarios/`](examples/scenarios/).
+
 ## Quickstart: the PR gate
 
 List the functions whose behaviour must be preserved across a PR in a manifest
@@ -35,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: Neelagiri65/equiv@v0.1.0
+      - uses: Neelagiri65/equiv@v0.2.1
         with: { keyless: "true" }
 ```
 
@@ -66,10 +76,16 @@ could not check.
 ## Scope
 
 `equiv` checks behavioural equivalence of a function against a reference, on
-deterministically generated inputs. This is bounded random testing, not
-exhaustive verification: a pass means no divergence was found on the generated
-inputs. It can still miss an edge case that only shows up for an input that
-was not generated. It does not check intent, architecture, security. It
+deterministically generated inputs. Generation has three deterministic layers:
+boundary corners per type (empty, sign and off-by-one values, uppercase, strings
+longer than 8, lists longer than 6, the float special values), inputs read from
+the source's own branch literals (a constant `== 777` in the code is tested
+directly, with its neighbours), then seeded random cases. This is still bounded
+testing, not exhaustive verification: a pass means no divergence was found on the
+generated inputs. Two limits are deliberate. A divergence that only appears for
+an integer over the magnitude envelope (|n| over 1,000,000, kept so a linear
+reference cannot hang) is not reached. Arguments are varied one at a time, which
+means a divergence that needs two specific arguments at once may be missed. It does not check intent, architecture, security. It
 cannot judge new functionality that has no reference to compare against. A
 passing result means behaviour was preserved on the tested inputs. It does not
 mean the change is correct. Supported input types in this version are `int`,
